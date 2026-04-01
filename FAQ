@@ -1,0 +1,57 @@
+Section Content
+
+Integration
+
+Create a campaign, select target geos and fill in the bot and target fields with the path to files or links, select the mode for the url target. 
+
+Integration must be completed before ads can run.
+
+Target Geo
+
+It is possible to select both individual geos and all geos "All". When selecting all geos, exclude non-target ones if necessary.
+
+Language
+
+Optional field. It is used in a point system in conjunction with a large number of other factors and does not directly affect the blocking.
+
+Bot url / white page
+
+Template/file to display for bot traffic. By default, the content mode is used to load the . In the bot url field, you need to specify the file name of your white page template, for example content.html without specifying the domain name. The template for bots should be located next to our script in the root folder of the domain. The white page is not recommended to be named as "index" and should be renamed, for example to content.html, main.html and so on.
+
+Target url / black page
+
+It is possible to use both a file and any external domain or link, and several substitution modes are available (more details in the section: Modes). If the template for targeted traffic is located in the root of the domain next to our script or in the root in a separate folder, then you need to select the content mode, if another domain/affiliate link, tracker streaming link, etc. is used, then select the redirect mode.
+
+
+Reverse Integration
+
+Activating this mode for the bot url is necessary when you cannot rename the name of the white for various reasons and it must be called "index". When the mode is activated, the bot url field is deactivated, since the page on which the script is connected will be displayed to inappropriate traffic. You need to activate the mode and make other settings and upload the script to the root of the site, rename our index.php for example to alg.php, then at the very beginning of your white page (white must be in the .php extension) insert the following code that will connect our script:
+
+<?php require 'alg.php'; ?>
+
+here is your template code………
+
+In Reverse Integration with `clo_mini.php`, `white_page` is not required and should be left empty. The script is included into your existing `index.php` white page.
+
+Block integration
+
+Used for or when white and black are the same page and you only want to show/hide part of the page: a piece of html code, part of a page, text, buttons, application forms, etc. It is necessary to include our script at the beginning of your template (only .php extension is required). We recommend renaming it to block.php. Next, insert our php construction in the right place, where everything that is inserted in the first upper part of the construction will be displayed for targeted traffic and in the second for bots.
+
+<?php require 'block.php'; ?>
+
+<?php if($is_target) { ?>
+TARGET
+<?php } else { ?>
+BOT
+<?php } ?>
+
+In Block Integration with `clo_mini.php`, `white_page` is not required and should be left empty. Use `$is_target` to switch content parts inside the same template.
+
+
+Targeted traffic modes.
+
+Swapping mode does not affect the lifespan of an account, it depends more on your funnel and link or technical specifics. We do not recommend using iframe - a technology that has many nuances and does not always work correctly.
+Substitution options:
+
+    Content - loads the content of the target page, which should be on the same domain as our script. This mode only works with files. For bot traffic, the content mode works by default.
+    Redirect - uses a redirect to another domain, affiliate link or tracker streaming link for targeted traffic.
