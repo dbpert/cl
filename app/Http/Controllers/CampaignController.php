@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreCampaignRequest;
 use App\Http\Requests\UpdateCampaignRequest;
 use App\Models\Campaign;
+use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -21,6 +22,8 @@ class CampaignController extends Controller
                 'id' => $campaign->id,
                 'name' => $campaign->name,
                 'integration_mode' => $campaign->integration_mode,
+                'precheck_integration_mode' => $campaign->precheck_integration_mode,
+                'soft_mode' => $campaign->soft_mode,
                 'target_mode' => $campaign->target_mode,
                 'tags_count' => $campaign->tags_count,
                 'geo_targets_count' => $campaign->geo_targets_count,
@@ -44,23 +47,27 @@ class CampaignController extends Controller
     public function store(StoreCampaignRequest $request)
     {
         $validated = $request->validated();
+        $normalized = $this->normalizeCampaignConfigInput($validated);
 
-        DB::transaction(function () use ($validated) {
-            [$allCountries, $geos] = $this->resolveGeoTargetsForSave($validated);
+        DB::transaction(function () use ($normalized) {
+            [$allCountries, $geos] = $this->resolveGeoTargetsForSave($normalized);
 
             $campaign = Campaign::create([
-                'name' => $validated['name'],
-                'integration_mode' => $validated['integration_mode'],
-                'target_mode' => $validated['target_mode'],
-                'target_redirect_url' => $validated['target_redirect_url'] ?? null,
-                'target_content_file' => $validated['target_content_file'] ?? null,
-                'bot_content_file' => $validated['bot_content_file'] ?? null,
+                'name' => $normalized['name'],
+                'integration_mode' => $normalized['integration_mode'],
+                'precheck_integration_mode' => $normalized['precheck_integration_mode'],
+                'soft_mode' => $normalized['soft_mode'],
+                'ingest_bearer_token' => $this->generateUniqueCampaignBearerToken(),
+                'target_mode' => $normalized['target_mode'],
+                'target_redirect_url' => $normalized['target_redirect_url'],
+                'target_content_file' => $normalized['target_content_file'],
+                'bot_content_file' => $normalized['bot_content_file'],
                 'all_countries' => $allCountries,
-                'is_active' => $validated['is_active'],
-                'settings_json' => $validated['settings_json'] ?? [],
+                'is_active' => $normalized['is_active'],
+                'settings_json' => $normalized['settings_json'] ?? [],
             ]);
 
-            $tags = collect($validated['tags'] ?? [])
+            $tags = collect($normalized['tags'] ?? [])
                 ->filter(fn ($tag) => is_string($tag) && trim($tag) !== '')
                 ->map(fn ($tag) => ['tag' => trim($tag)])
                 ->unique('tag')
@@ -100,23 +107,26 @@ class CampaignController extends Controller
     public function update(UpdateCampaignRequest $request, Campaign $campaign)
     {
         $validated = $request->validated();
+        $normalized = $this->normalizeCampaignConfigInput($validated);
 
-        DB::transaction(function () use ($campaign, $validated) {
-            [$allCountries, $geos] = $this->resolveGeoTargetsForSave($validated);
+        DB::transaction(function () use ($campaign, $normalized) {
+            [$allCountries, $geos] = $this->resolveGeoTargetsForSave($normalized);
 
             $campaign->update([
-                'name' => $validated['name'],
-                'integration_mode' => $validated['integration_mode'],
-                'target_mode' => $validated['target_mode'],
-                'target_redirect_url' => $validated['target_redirect_url'] ?? null,
-                'target_content_file' => $validated['target_content_file'] ?? null,
-                'bot_content_file' => $validated['bot_content_file'] ?? null,
+                'name' => $normalized['name'],
+                'integration_mode' => $normalized['integration_mode'],
+                'precheck_integration_mode' => $normalized['precheck_integration_mode'],
+                'soft_mode' => $normalized['soft_mode'],
+                'target_mode' => $normalized['target_mode'],
+                'target_redirect_url' => $normalized['target_redirect_url'],
+                'target_content_file' => $normalized['target_content_file'],
+                'bot_content_file' => $normalized['bot_content_file'],
                 'all_countries' => $allCountries,
-                'is_active' => $validated['is_active'],
-                'settings_json' => $validated['settings_json'] ?? [],
+                'is_active' => $normalized['is_active'],
+                'settings_json' => $normalized['settings_json'] ?? [],
             ]);
 
-            $tags = collect($validated['tags'] ?? [])
+            $tags = collect($normalized['tags'] ?? [])
                 ->filter(fn ($tag) => is_string($tag) && trim($tag) !== '')
                 ->map(fn ($tag) => ['tag' => trim($tag)])
                 ->unique('tag')
@@ -140,6 +150,22 @@ class CampaignController extends Controller
     {
         $campaign->delete();
         return redirect()->route('campaigns.index')->with('success', 'Campaign deleted.');
+    }
+
+    public function downloadClient(Campaign $campaign): HttpResponse
+    {
+        if (!is_string($campaign->ingest_bearer_token) || trim($campaign->ingest_bearer_token) === '') {
+            $campaign->ingest_bearer_token = $this->generateUniqueCampaignBearerToken();
+            $campaign->save();
+        }
+
+        $content = $this->buildIntegrationClientContent($campaign);
+        $filename = 'index.php';
+
+        return response($content, 200, [
+            'Content-Type' => 'application/x-httpd-php; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
     }
 
     /**
@@ -215,5 +241,71 @@ class CampaignController extends Controller
         }
 
         return $result;
+    }
+
+    private function normalizeCampaignConfigInput(array $validated): array
+    {
+        $integrationMode = (string) ($validated['integration_mode'] ?? 'front_controller');
+        $targetMode = (string) ($validated['target_mode'] ?? 'redirect');
+        if ($integrationMode === 'block_integration') {
+            $targetMode = 'redirect';
+        }
+
+        return [
+            ...$validated,
+            'precheck_integration_mode' => (string) ($validated['precheck_integration_mode'] ?? 'php_include'),
+            'soft_mode' => (string) ($validated['soft_mode'] ?? 'challenge'),
+            'target_mode' => $targetMode,
+            'target_redirect_url' => $targetMode === 'redirect' && $integrationMode !== 'block_integration'
+                ? ($validated['target_redirect_url'] ?? null)
+                : null,
+            'target_content_file' => $targetMode === 'content' && $integrationMode !== 'block_integration'
+                ? ($validated['target_content_file'] ?? null)
+                : null,
+            'bot_content_file' => $integrationMode === 'front_controller'
+                ? ($validated['bot_content_file'] ?? null)
+                : null,
+        ];
+    }
+
+    private function buildIntegrationClientContent(Campaign $campaign): string
+    {
+        $stub = file_get_contents(resource_path('stubs/integration_index.php.stub'));
+        if (!is_string($stub) || $stub === '') {
+            abort(500, 'Integration client stub not found.');
+        }
+
+        $siteUrl = (string) config('app.url');
+        $precheckApiUrl = rtrim($siteUrl, '/') . '/api/precheck';
+        $deviceCollectUrl = rtrim($siteUrl, '/') . '/api/collect/device';
+        $ingestToken = (string) ($campaign->ingest_bearer_token ?? '');
+
+        $settings = is_array($campaign->settings_json ?? null) ? $campaign->settings_json : [];
+        $tenantId = (string) ($settings['tenant_id'] ?? 'tenant-' . $campaign->id);
+        $projectId = (string) ($settings['project_id'] ?? 'project-' . $campaign->id);
+
+        $replacements = [
+            '__PRECHECK_API_URL__' => addslashes($precheckApiUrl),
+            '__PRECHECK_TOKEN__' => addslashes($ingestToken),
+            '__TENANT_ID__' => addslashes($tenantId),
+            '__PROJECT_ID__' => addslashes($projectId),
+            '__CAMPAIGN_ID__' => (string) $campaign->id,
+            '__RUNTIME_INTEGRATION_MODE__' => addslashes((string) $campaign->integration_mode),
+            '__PRECHECK_INTEGRATION_MODE__' => addslashes((string) $campaign->precheck_integration_mode),
+            '__SOFT_MODE__' => addslashes((string) $campaign->soft_mode),
+            '__FINGERPRINT_ENDPOINT__' => addslashes($deviceCollectUrl),
+            '__BEHAVIOR_ENDPOINT__' => addslashes('/collector.php'),
+        ];
+
+        return str_replace(array_keys($replacements), array_values($replacements), $stub);
+    }
+
+    private function generateUniqueCampaignBearerToken(): string
+    {
+        do {
+            $token = 'cmp_' . rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+        } while (Campaign::query()->where('ingest_bearer_token', $token)->exists());
+
+        return $token;
     }
 }

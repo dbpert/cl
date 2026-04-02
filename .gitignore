@@ -1,6 +1,12 @@
 *.log
 .DS_Store
 README.md
+country_list.csv
+.gitattributes
+.editorconfig
+FAQ
+SSH_helper
+deploy.sh
 .env
 .env.backup
 .env.production

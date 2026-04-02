@@ -1,9 +1,18 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import ActionIconButton from '@/Components/ActionIconButton';
-import { BarsChartIcon, PencilIcon, TrashIcon } from '@/Components/ActionIcons';
-import { Head, Link } from '@inertiajs/react';
+import { BarsChartIcon, DownloadIcon, PencilIcon, TrashIcon } from '@/Components/ActionIcons';
+import { Head, Link, router } from '@inertiajs/react';
 
 export default function Index({ campaigns }) {
+    const handleDeleteCampaign = (campaign) => {
+        const confirmed = window.confirm(`Delete campaign "${campaign.name}"? This action cannot be undone.`);
+        if (!confirmed) {
+            return;
+        }
+
+        router.delete(route('campaigns.destroy', campaign.id));
+    };
+
     return (
         <AuthenticatedLayout
             header={<h2 className="text-xl font-semibold leading-tight text-gray-800">Campaigns</h2>}
@@ -51,6 +60,16 @@ export default function Index({ campaigns }) {
                                                 >
                                                     <BarsChartIcon />
                                                 </ActionIconButton>
+                                                <a
+                                                    href={route('campaigns.download-client', campaign.id)}
+                                                    title="Download integration index.php"
+                                                    aria-label="Download integration index.php"
+                                                    className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                                >
+                                                    <span className="h-5 w-5">
+                                                        <DownloadIcon />
+                                                    </span>
+                                                </a>
                                                 <ActionIconButton
                                                     href={route('campaigns.edit', campaign.id)}
                                                     title="Edit campaign"
@@ -58,15 +77,17 @@ export default function Index({ campaigns }) {
                                                 >
                                                     <PencilIcon />
                                                 </ActionIconButton>
-                                                <ActionIconButton
-                                                href={route('campaigns.destroy', campaign.id)}
-                                                method="delete"
-                                                as="button"
+                                                <button
+                                                    type="button"
                                                     title="Delete campaign"
-                                                    variant="danger"
-                                            >
-                                                    <TrashIcon />
-                                                </ActionIconButton>
+                                                    aria-label="Delete campaign"
+                                                    onClick={() => handleDeleteCampaign(campaign)}
+                                                    className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-red-200 text-red-600 transition hover:bg-red-100 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                                >
+                                                    <span className="h-5 w-5">
+                                                        <TrashIcon />
+                                                    </span>
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>

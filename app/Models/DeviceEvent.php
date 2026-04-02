@@ -12,6 +12,10 @@ class DeviceEvent extends Model
 
     protected $fillable = [
         'campaign_id',
+        'request_id',
+        'tenant_id',
+        'project_id',
+        'integration_mode',
         'session_id',
         'agua',
         'referrer',

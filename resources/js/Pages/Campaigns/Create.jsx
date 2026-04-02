@@ -6,6 +6,8 @@ export default function Create({ countryOptions, tagPresets }) {
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         integration_mode: 'front_controller',
+        precheck_integration_mode: 'php_include',
+        soft_mode: 'challenge',
         target_mode: 'redirect',
         target_redirect_url: '',
         target_content_file: '',

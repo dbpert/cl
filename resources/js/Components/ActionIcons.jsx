@@ -14,6 +14,14 @@ export function BarsChartIcon(props) {
     );
 }
 
+export function DownloadIcon(props) {
+    return (
+        <svg viewBox="0 0 20 20" fill="currentColor" {...props}>
+            <path d="M10 2.75a.75.75 0 0 1 .75.75v7.19l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.5A.75.75 0 0 1 10 2.75Zm-5 11.5A.75.75 0 0 1 5.75 13h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1-.75-.75Z" />
+        </svg>
+    );
+}
+
 export function PencilIcon(props) {
     return (
         <svg viewBox="0 0 20 20" fill="currentColor" {...props}>

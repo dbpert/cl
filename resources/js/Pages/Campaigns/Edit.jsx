@@ -6,6 +6,8 @@ export default function Edit({ campaign, countryOptions, tagPresets }) {
     const { data, setData, patch, processing, errors } = useForm({
         name: campaign.name ?? '',
         integration_mode: campaign.integration_mode ?? 'front_controller',
+        precheck_integration_mode: campaign.precheck_integration_mode ?? 'php_include',
+        soft_mode: campaign.soft_mode ?? 'challenge',
         target_mode: campaign.target_mode ?? 'redirect',
         target_redirect_url: campaign.target_redirect_url ?? '',
         target_content_file: campaign.target_content_file ?? '',

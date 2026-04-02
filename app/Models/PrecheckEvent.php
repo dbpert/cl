@@ -14,6 +14,8 @@ class PrecheckEvent extends Model
 
     protected $fillable = [
         'campaign_id',
+        'tenant_id',
+        'project_id',
         'session_id',
         'request_id',
         'integration_mode',

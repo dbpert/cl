@@ -6,6 +6,16 @@ Create a campaign, select target geos and fill in the bot and target fields with
 
 Integration must be completed before ads can run.
 
+Precheck Adapter Mode
+
+Campaign setup has a dedicated precheck adapter mode (separate from runtime integration mode):
+- `php_include` (high-trust server context)
+- `fetch_endpoint` (medium-trust fallback)
+- `node_middleware` (high-trust server context)
+- `next_middleware` (high-trust server context)
+
+Runtime integration mode controls how templates are connected (`Front Controller`, `Reverse Integration`, `Block Integration`), while precheck adapter mode controls Stage 0 transport/trust semantics for `/api/precheck`.
+
 Target Geo
 
 It is possible to select both individual geos and all geos "All". When selecting all geos, exclude non-target ones if necessary.

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CampaignController;
+use App\Http\Controllers\IntegrationApiController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StatisticsController;
 use Illuminate\Foundation\Application;
@@ -22,7 +23,10 @@ Route::get('/dashboard', function () {
 
 Route::middleware('auth')->group(function () {
     Route::resource('campaigns', CampaignController::class)->except(['show']);
+    Route::get('/campaigns/{campaign}/download-client', [CampaignController::class, 'downloadClient'])->name('campaigns.download-client');
     Route::get('/statistics/{campaign}', [StatisticsController::class, 'show'])->name('statistics.show');
+    Route::get('/api-docs/precheck', [IntegrationApiController::class, 'precheck'])->name('api-docs.precheck');
+    Route::get('/api-docs/device-fingerprints', [IntegrationApiController::class, 'deviceFingerprints'])->name('api-docs.device-fingerprints');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

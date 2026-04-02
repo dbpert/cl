@@ -160,6 +160,36 @@ export default function CampaignFormFields({
                 <InputError className="mt-2" message={errors.integration_mode} />
             </div>
 
+            <div>
+                <InputLabel htmlFor="precheck_integration_mode" value="Precheck Adapter Mode" />
+                <select
+                    id="precheck_integration_mode"
+                    className="mt-1 block w-full rounded-md border-gray-300"
+                    value={data.precheck_integration_mode}
+                    onChange={(e) => setData('precheck_integration_mode', e.target.value)}
+                >
+                    <option value="php_include">PHP Include (high trust)</option>
+                    <option value="fetch_endpoint">Fetch Endpoint (medium trust)</option>
+                    <option value="node_middleware">Node Middleware (high trust)</option>
+                    <option value="next_middleware">Next Middleware (high trust)</option>
+                </select>
+                <InputError className="mt-2" message={errors.precheck_integration_mode} />
+            </div>
+
+            <div>
+                <InputLabel htmlFor="soft_mode" value="Soft Mode" />
+                <select
+                    id="soft_mode"
+                    className="mt-1 block w-full rounded-md border-gray-300"
+                    value={data.soft_mode}
+                    onChange={(e) => setData('soft_mode', e.target.value)}
+                >
+                    <option value="challenge">Challenge</option>
+                    <option value="background">Background</option>
+                </select>
+                <InputError className="mt-2" message={errors.soft_mode} />
+            </div>
+
             {!isBlockIntegration && (
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div>

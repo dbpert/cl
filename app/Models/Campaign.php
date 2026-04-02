@@ -13,6 +13,9 @@ class Campaign extends Model
     protected $fillable = [
         'name',
         'integration_mode',
+        'precheck_integration_mode',
+        'soft_mode',
+        'ingest_bearer_token',
         'target_mode',
         'target_redirect_url',
         'target_content_file',

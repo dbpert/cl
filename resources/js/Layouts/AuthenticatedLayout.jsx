@@ -9,6 +9,8 @@ export default function AuthenticatedLayout({ header, children }) {
         () => [
             { label: 'Dashboard', href: route('dashboard'), active: route().current('dashboard'), icon: 'D' },
             { label: 'Campaigns', href: route('campaigns.index'), active: route().current('campaigns.*'), icon: 'C' },
+            { label: 'Precheck API', href: route('api-docs.precheck'), active: route().current('api-docs.precheck'), icon: 'P' },
+            { label: 'Device API', href: route('api-docs.device-fingerprints'), active: route().current('api-docs.device-fingerprints'), icon: 'F' },
         ],
         [],
     );

@@ -22,6 +22,7 @@ class PrecheckController extends Controller
             'integration_mode' => ['nullable', 'string', 'max:50'],
             'server_context' => ['nullable', 'array'],
             'client_context' => ['nullable', 'array'],
+            'fingerprint_context' => ['nullable', 'array'],
             'traffic_context' => ['nullable', 'array'],
         ]);
 
@@ -35,8 +36,17 @@ class PrecheckController extends Controller
         $query = (string) ($server['query'] ?? '');
         $ua = (string) ($server['user_agent'] ?? $client['ua'] ?? '');
         $acceptLanguage = (string) ($server['accept_language'] ?? '');
-        $integrationMode = (string) ($data['integration_mode'] ?? 'php_include');
+        $requestId = (string) ($data['request_id'] ?? Str::uuid());
+        $tenantId = isset($data['tenant_id']) ? (string) $data['tenant_id'] : null;
+        $projectId = isset($data['project_id']) ? (string) $data['project_id'] : null;
         $webdriver = (bool) ($client['webdriver'] ?? false);
+        $campaignId = $data['campaign_id']
+            ?? data_get($traffic, 'campaign_id')
+            ?? data_get($server, 'campaign_id')
+            ?? null;
+        $campaign = $campaignId ? Campaign::query()->find($campaignId) : null;
+        $integrationMode = (string) ($data['integration_mode'] ?? $campaign?->precheck_integration_mode ?? 'php_include');
+        $softMode = (string) ($campaign?->soft_mode ?? 'challenge');
 
         $reasonCodes = [];
         $score = 0;
@@ -72,16 +82,18 @@ class PrecheckController extends Controller
             $verdict = 'soft';
         }
 
-        $campaignId = $data['campaign_id']
-            ?? $data['project_id']
-            ?? data_get($traffic, 'campaign_id')
-            ?? data_get($server, 'campaign_id')
-            ?? null;
-        $campaign = $campaignId ? Campaign::query()->find($campaignId) : null;
+        $traffic['campaign_id'] = $campaign?->id ?? data_get($traffic, 'campaign_id');
+        $traffic['tenant_id'] = $tenantId ?? data_get($traffic, 'tenant_id');
+        $traffic['project_id'] = $projectId ?? data_get($traffic, 'project_id');
+        $client['request_id'] = $requestId;
+        $client['fingerprint_context'] = $data['fingerprint_context'] ?? null;
+
         $event = PrecheckEvent::query()->create([
             'campaign_id' => $campaign?->id,
+            'tenant_id' => $tenantId,
+            'project_id' => $projectId,
             'session_id' => (string) ($data['session_id'] ?? ''),
-            'request_id' => (string) ($data['request_id'] ?? Str::uuid()),
+            'request_id' => $requestId,
             'integration_mode' => $integrationMode,
             'ip' => $ip,
             'host' => $host,
@@ -101,6 +113,9 @@ class PrecheckController extends Controller
             'ok' => true,
             'request_id' => $event->request_id,
             'session_id' => $event->session_id,
+            'campaign_id' => $campaign?->id,
+            'tenant_id' => $tenantId,
+            'project_id' => $projectId,
             'decision' => [
                 'verdict' => $verdict,
                 'risk_score' => $score,
@@ -111,7 +126,8 @@ class PrecheckController extends Controller
             ],
             'next_step' => [
                 'collect_behavior' => $verdict !== 'hard',
-                'challenge_required' => $verdict === 'soft',
+                'challenge_required' => $verdict === 'soft' && $softMode === 'challenge',
+                'soft_mode' => $softMode,
             ],
             'action' => [
                 'blocked_action' => 'white_page',
