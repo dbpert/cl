@@ -275,9 +275,12 @@ class CampaignController extends Controller
             abort(500, 'Integration client stub not found.');
         }
 
-        $siteUrl = (string) config('app.url');
-        $precheckApiUrl = rtrim($siteUrl, '/') . '/api/precheck';
-        $deviceCollectUrl = rtrim($siteUrl, '/') . '/api/collect/device';
+        $apiBaseUrl = (string) config('app.api_url');
+        if (trim($apiBaseUrl) === '') {
+            $apiBaseUrl = (string) config('app.url');
+        }
+        $precheckApiUrl = rtrim($apiBaseUrl, '/') . '/api/precheck';
+        $deviceCollectUrl = rtrim($apiBaseUrl, '/') . '/api/collect/device';
         $ingestToken = (string) ($campaign->ingest_bearer_token ?? '');
 
         $settings = is_array($campaign->settings_json ?? null) ? $campaign->settings_json : [];
