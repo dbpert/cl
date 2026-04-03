@@ -1,6 +1,13 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * Cloak integration (generated). Runtime semantics (README_TODO):
+ * - hard  -> $is_target = false; white page (or API action); request ends here when apply_hard_action applies.
+ * - soft  -> $is_target = false; optional head injection (challenge or background collectors); page continues.
+ * - allow -> $is_target = true; front_controller may redirect or serve target file; reverse/block only set flag for template.
+ */
+
 $is_target = false;
 
 $config = [
@@ -13,6 +20,10 @@ $config = [
     'precheck_integration_mode' => '__PRECHECK_INTEGRATION_MODE__',
     'apply_hard_action' => 'auto',
     'soft_mode' => '__SOFT_MODE__',
+    'target_mode' => '__TARGET_MODE__',
+    'target_redirect_url' => '__TARGET_REDIRECT_URL__',
+    'target_content_file' => '__TARGET_CONTENT_FILE__',
+    'bot_content_file' => '__BOT_CONTENT_FILE__',
     'fingerprint_script_src' => '/cwt.js',
     'behavior_script_src' => '/assets/js/behavior-collector.js',
     'collect_fingerprint' => true,
@@ -89,6 +100,23 @@ function callPrecheck(string $url, string $token, array $payload)
     return is_array($decoded) ? $decoded : false;
 }
 
+function resolveSafeLocalPath(string $docRoot, string $relative): string
+{
+    $docRoot = rtrim($docRoot, '/');
+    if ($docRoot === '') {
+        return '';
+    }
+    $relative = str_replace(["\0", '..'], '', $relative);
+    $relative = ltrim($relative, '/');
+    $path = $docRoot . '/' . $relative;
+    $real = realpath($path);
+    $realRoot = realpath($docRoot);
+    if ($real === false || $realRoot === false || !str_starts_with($real, $realRoot)) {
+        return '';
+    }
+    return $real;
+}
+
 function buildHeadInjection(array $context, array $config): string
 {
     $ctx = json_encode($context, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
@@ -104,15 +132,15 @@ function buildHeadInjection(array $context, array $config): string
     }
     if (!empty($config['collect_behavior'])) {
         $behaviorCfg = json_encode([
-            'endpoint' => (string) $context['collect_behavior_endpoint'],
-            'site' => (string) $context['site'],
-            'sessionId' => (string) $context['session_id'],
-            'requestId' => (string) $context['request_id'],
-            'campaignId' => (string) $context['campaign_id'],
-            'tenantId' => (string) $context['tenant_id'],
-            'projectId' => (string) $context['project_id'],
-            'integrationMode' => (string) $context['integration_mode'],
-            'sampleLabel' => 'soft_background',
+            'endpoint' => (string) ($context['collect_behavior_endpoint'] ?? ''),
+            'site' => (string) ($context['site'] ?? ''),
+            'sessionId' => (string) ($context['session_id'] ?? ''),
+            'requestId' => (string) ($context['request_id'] ?? ''),
+            'campaignId' => (string) ($context['campaign_id'] ?? ''),
+            'tenantId' => (string) ($context['tenant_id'] ?? ''),
+            'projectId' => (string) ($context['project_id'] ?? ''),
+            'integrationMode' => (string) ($context['integration_mode'] ?? ''),
+            'sampleLabel' => (string) ($context['soft_stage'] ?? 'soft'),
             'sampleSource' => 'clo_client',
         ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
         if (!is_string($behaviorCfg) || $behaviorCfg === '') {
@@ -125,7 +153,16 @@ function buildHeadInjection(array $context, array $config): string
     return implode('', $parts);
 }
 
-function dispatchHard(array $precheck): void
+function shouldApplyHardAction(array $config): bool
+{
+    $apply = $config['apply_hard_action'] ?? 'auto';
+    if ($apply === false || $apply === 'false') {
+        return false;
+    }
+    return true;
+}
+
+function dispatchHard(array $precheck, array $config): void
 {
     $action = is_array($precheck['action'] ?? null) ? $precheck['action'] : [];
     $blocked = (string) ($action['blocked_action'] ?? 'white_page');
@@ -135,42 +172,101 @@ function dispatchHard(array $precheck): void
         header('Location: ' . $location);
         exit;
     }
-    $white = (string) ($action['white_page_file'] ?? 'white_page.html');
-    $path = rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''), '/') . '/' . ltrim($white, '/');
-    if (is_file($path)) {
+    $white = trim((string) ($action['white_page_file'] ?? ''));
+    if ($white === '') {
+        $white = trim((string) ($config['bot_content_file'] ?? ''));
+    }
+    if ($white === '') {
+        $white = 'white_page.html';
+    }
+    $docRoot = rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+    $path = $docRoot !== '' ? resolveSafeLocalPath($docRoot, $white) : '';
+    if ($path !== '' && is_file($path)) {
         header('Content-Type: text/html; charset=utf-8');
         readfile($path);
         exit;
     }
     header('Content-Type: text/html; charset=utf-8');
-    echo '<!DOCTYPE html><html><head><title>Index</title></head><body></body></html>';
+    echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title></title></head><body></body></html>';
     exit;
+}
+
+function dispatchAllowFrontController(array $config): void
+{
+    $targetMode = (string) ($config['target_mode'] ?? 'redirect');
+    if ($targetMode === 'redirect') {
+        $url = trim((string) ($config['target_redirect_url'] ?? ''));
+        if ($url !== '') {
+            $location = preg_match('/^https?:\/\//i', $url) ? $url : 'https://' . $url;
+            header('Location: ' . $location);
+            exit;
+        }
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title></title></head><body></body></html>';
+        exit;
+    }
+    if ($targetMode === 'content') {
+        $file = trim((string) ($config['target_content_file'] ?? ''));
+        $docRoot = rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+        $path = $docRoot !== '' && $file !== '' ? resolveSafeLocalPath($docRoot, $file) : '';
+        if ($path !== '' && is_file($path)) {
+            $mime = 'text/html';
+            $lower = strtolower($path);
+            if (str_ends_with($lower, '.css')) {
+                $mime = 'text/css';
+            } elseif (str_ends_with($lower, '.js')) {
+                $mime = 'application/javascript';
+            }
+            header('Content-Type: ' . $mime . '; charset=utf-8');
+            readfile($path);
+            exit;
+        }
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title></title></head><body></body></html>';
+        exit;
+    }
 }
 
 $payload = buildPrecheckPayload($config);
 $precheck = callPrecheck((string) $config['precheck_api_url'], (string) $config['precheck_token'], $payload);
 $clo_head_injection = '';
 
-if (is_array($precheck)) {
-    $decision = is_array($precheck['decision'] ?? null) ? $precheck['decision'] : [];
-    $verdict = (string) ($decision['verdict'] ?? 'allow');
-    $is_target = $verdict !== 'hard';
-
-    if ($verdict === 'soft' && ((string) $config['soft_mode']) === 'background') {
-        $clo_head_injection = buildHeadInjection([
-            'request_id' => (string) ($precheck['request_id'] ?? $payload['request_id']),
-            'session_id' => (string) ($precheck['session_id'] ?? $payload['session_id']),
-            'campaign_id' => (string) $config['campaign_id'],
-            'tenant_id' => (string) $config['tenant_id'],
-            'project_id' => (string) $config['project_id'],
-            'integration_mode' => (string) $config['precheck_integration_mode'],
-            'collect_behavior_endpoint' => (string) $config['collect_behavior_endpoint'],
-            'site' => (string) ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'unknown-site'),
-        ], $config);
-    }
-
-    if ($verdict === 'hard' && ((string) $config['apply_hard_action']) !== 'false') {
-        dispatchHard($precheck);
-    }
+if (!is_array($precheck)) {
+    // Fail-closed: $is_target stays false.
+    return;
 }
 
+$decision = is_array($precheck['decision'] ?? null) ? $precheck['decision'] : [];
+$verdict = (string) ($decision['verdict'] ?? 'allow');
+
+if ($verdict === 'hard') {
+    $is_target = false;
+    if (shouldApplyHardAction($config)) {
+        dispatchHard($precheck, $config);
+    }
+} elseif ($verdict === 'soft') {
+    $is_target = false;
+    $softMode = (string) ($config['soft_mode'] ?? 'challenge');
+    $clo_head_injection = buildHeadInjection([
+        'request_id' => (string) ($precheck['request_id'] ?? $payload['request_id']),
+        'session_id' => (string) ($precheck['session_id'] ?? $payload['session_id']),
+        'campaign_id' => (string) $config['campaign_id'],
+        'tenant_id' => (string) $config['tenant_id'],
+        'project_id' => (string) $config['project_id'],
+        'integration_mode' => (string) $config['precheck_integration_mode'],
+        'collect_fingerprint' => !empty($config['collect_fingerprint']),
+        'collect_behavior' => !empty($config['collect_behavior']),
+        'collect_fingerprint_endpoint' => (string) ($config['collect_fingerprint_endpoint'] ?? ''),
+        'collect_behavior_endpoint' => (string) ($config['collect_behavior_endpoint'] ?? ''),
+        'soft_mode' => $softMode,
+        'soft_stage' => $softMode === 'background' ? 'soft_background' : 'soft_challenge',
+        'site' => (string) ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'unknown-site'),
+    ], $config);
+} elseif ($verdict === 'allow') {
+    $is_target = true;
+    $runtime = (string) ($config['integration_mode'] ?? 'front_controller');
+    if ($runtime === 'front_controller') {
+        dispatchAllowFrontController($config);
+    }
+    // reverse_integration | block_integration: only $is_target; surrounding template decides what to render.
+}

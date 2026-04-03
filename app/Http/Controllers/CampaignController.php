@@ -296,6 +296,10 @@ class CampaignController extends Controller
             '__RUNTIME_INTEGRATION_MODE__' => addslashes((string) $campaign->integration_mode),
             '__PRECHECK_INTEGRATION_MODE__' => addslashes((string) $campaign->precheck_integration_mode),
             '__SOFT_MODE__' => addslashes((string) $campaign->soft_mode),
+            '__TARGET_MODE__' => addslashes((string) $campaign->target_mode),
+            '__TARGET_REDIRECT_URL__' => addslashes((string) ($campaign->target_redirect_url ?? '')),
+            '__TARGET_CONTENT_FILE__' => addslashes((string) ($campaign->target_content_file ?? '')),
+            '__BOT_CONTENT_FILE__' => addslashes((string) ($campaign->bot_content_file ?? 'white_page.html')),
             '__FINGERPRINT_ENDPOINT__' => addslashes($deviceCollectUrl),
             '__BEHAVIOR_ENDPOINT__' => addslashes('/collector.php'),
         ];
